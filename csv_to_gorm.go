@@ -1,11 +1,13 @@
 package csv_to_gorm
 
 import (
+	"bufio"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"reflect"
 	"strconv"
@@ -15,7 +17,9 @@ import (
 // converts the content of a CSV file to a slice of 'models'
 // colMap maps the feldnames of the model to the column numbers (beginning at 1) of the CSV file
 // the result is an interface, which will need to be typecast by the caller
-func CsvToSlice(file string, model interface{}, colMap map[string]int) interface{} {
+func CsvToSlice(file *os.File, colSep rune, model interface{}, colMap map[string]int) interface{} {
+	// make sure we start at teh start of the file
+	file.Seek(0, 0)
 
 	// determine what type of model we are trying to fill records of
 	modelTyp := reflect.ValueOf(model).Elem().Type()
@@ -23,39 +27,27 @@ func CsvToSlice(file string, model interface{}, colMap map[string]int) interface
 
 	// make an empty slice to hold the records to be uploaded to the db.
 	// ***  FIRST DETERMINE HOW BIG THE ARRAY HAS TO BE  **
-	//numRecords := 27308
-	//objArryTyp := reflect.ArrayOf(numRecords, modelTyp)
-	//objArry := reflect.New(objArryTyp).Elem()
 	objSlice := reflect.Zero(reflect.SliceOf(modelTyp))
 
-	f, err := os.Open(file)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
+	r := csv.NewReader(file)
+	r.Comma = colSep
 
-	r := csv.NewReader(f)
-	//r.Comma = ';'
-
-	// read the first line separately as it contains the headings
-	colNames, err := r.Read()
+	// read the first line and ignore it , as it contains the headers
+	_, err := r.Read()
 	if err != nil {
-		log.Fatal("Cannot read heading row of CSV file")
+		log.Fatal("CsvToSlice: Cannot read heading row of CSV file")
 	}
-	fmt.Println("Number of Columns: ", len(colNames))
-	fmt.Println("fields per record: ", r.FieldsPerRecord)
-	fmt.Println("Column Headings: ", colNames)
 
 	var recordIx int = 0
 	// for each line of the CSV file, which is a record
 	dbRecordPtr := reflect.New(modelTyp)
 	for {
 		if recordIx%1000 == 0 {
-			fmt.Println("Begin Record procedure. Record No.", recordIx)
+			fmt.Println("Processing record No.", recordIx)
 		}
 		csvRecord, err := r.Read()
 		if err == io.EOF {
-			fmt.Println("EOF Reached")
+			fmt.Println("Reached end of input file")
 			break
 		}
 
@@ -84,6 +76,77 @@ func CsvToSlice(file string, model interface{}, colMap map[string]int) interface
 		recordIx++
 	}
 	return objSlice.Interface()
+}
+
+// inputReader would normally be the file or stream to read
+func GuessSeparator(file *os.File) (rune, error) {
+	// make sure we start at teh start of the file
+	file.Seek(0, 0)
+
+	var r *csv.Reader
+
+	// separator candidates in the order in which they will be checked
+	sepCandidates := []rune{',', '\t', ';', ' '}
+
+	for _, sep := range sepCandidates {
+		//fmt.Println("Trying: '", string(sep), "'")
+		isCandidate := true
+		// make sure we start at the start of the file each time
+		file.Seek(0, 0)
+		reader := bufio.NewReader(file)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return ',', errors.New("Could not read line of file")
+		}
+		if !strings.Contains(line, string(sep)) {
+			// candidate separator probably not right.  Next one
+			isCandidate = false
+			continue
+		}
+		file.Seek(0, 0)
+		r = csv.NewReader(file)
+		r.Comma = sep
+
+		// read up to the first 100 lines.
+		// Flags Error if the number of fields is different form first line or if EOF
+		for i := 1; i <= 100; i++ {
+
+			_, err := r.Read()
+			if err != nil {
+				if err == io.EOF {
+					// EOF reached without other error. Separator is probably right
+					return sep, nil
+				} else {
+					// candidate separator probably not right.  Next one
+					isCandidate = false
+					break
+				}
+			}
+		}
+		if isCandidate {
+			// EOF reached without other error. Separator is probably right
+			return sep, nil
+		}
+	}
+	return ',', errors.New("None of the separators tried were valid")
+}
+
+func GetHeadings(file *os.File, colSep rune) ([]string, error) {
+	// make sure we start at teh start of the file
+	file.Seek(0, 0)
+
+	r := csv.NewReader(file)
+	r.Comma = colSep
+
+	// read only the first line
+	colNames, err := r.Read()
+	if err != nil {
+		log.Fatal("GetHeadings: Cannot read heading row of CSV file: " + err.Error())
+	}
+	//fmt.Println("Number of Columns: ", len(colNames))
+	//fmt.Println("fields per record: ", r.FieldsPerRecord)
+	//fmt.Println("Column Headings: ", colNames)
+	return colNames, err
 }
 
 // takes the text string of a CSV field and converts it to a reflect.Value of a given type (supplied as a reflect.Type)
@@ -152,6 +215,134 @@ func StringToType(input string, outType reflect.Type) reflect.Value {
 		log.Fatal("stringToType has recieved a ", outType, " and does not kow how to handle it")
 	}
 	return reflect.ValueOf(errors.New("stringToType could not convert type " + outType.Name()))
+}
+
+func ExcelColIdToColNo(colID string) (int, error) {
+	//firstColNo := 1
+	lastColNo := 16384
+
+	var colMap = map[byte]int{
+		'A': 1,
+		'B': 2,
+		'C': 3,
+		'D': 4,
+		'E': 5,
+		'F': 6,
+		'G': 7,
+		'H': 8,
+		'I': 9,
+		'J': 10,
+		'K': 11,
+		'L': 12,
+		'M': 13,
+		'N': 14,
+		'O': 15,
+		'P': 16,
+		'Q': 17,
+		'R': 18,
+		'S': 19,
+		'T': 20,
+		'U': 21,
+		'V': 22,
+		'W': 23,
+		'X': 24,
+		'Y': 25,
+		'Z': 26,
+	}
+
+	colID = strings.ToUpper(strings.Trim(colID, " ,;.:|1234567890"))
+	if len(colID) > 3 || len(colID) < 1 {
+		return 0, errors.New("Too many or to few characters to be am Excel column ID.  Should be in the form A  or AB or ABC")
+	}
+	colIDArr := []byte(colID)
+	result := 0
+
+	// start with the right most letter and work left
+	for iX := len(colIDArr) - 1; iX >= 0; iX-- {
+
+		switch (len(colIDArr) - 1) - iX {
+		case 0:
+			result = result + colMap[colIDArr[iX]]
+		case 1:
+			result = result + colMap[colIDArr[iX]]*26
+		case 2:
+			result = result + colMap[colIDArr[iX]]*26*26
+		default:
+			return 0, errors.New("index of column ID character out of range")
+		}
+	}
+	if result > lastColNo {
+		return 0, errors.New("index of column ID out of range.  Highest column possible is XFD, which equates to column no. " + strconv.Itoa(lastColNo))
+	}
+	return result, nil
+}
+
+func ExcelColNoToColId(colNo int) (string, error) {
+
+	if colNo < 1 {
+		return "", errors.New("Colum No. out of range: Too low")
+	}
+	if colNo > 16384 {
+		return "", errors.New("Colum No. out of range: Too high")
+	}
+
+	var colMap = map[int]string{
+		0:  "",
+		1:  "A",
+		2:  "B",
+		3:  "C",
+		4:  "D",
+		5:  "E",
+		6:  "F",
+		7:  "G",
+		8:  "H",
+		9:  "I",
+		10: "J",
+		11: "K",
+		12: "L",
+		13: "M",
+		14: "N",
+		15: "O",
+		16: "P",
+		17: "Q",
+		18: "R",
+		19: "S",
+		20: "T",
+		21: "U",
+		22: "V",
+		23: "W",
+		24: "X",
+		25: "Y",
+		26: "Z",
+	}
+
+	firstLetter := ""
+	secondLetter := ""
+	thirdLetter := ""
+
+	if (colNo % 26) == 0 {
+		thirdLetter = colMap[26]
+	} else {
+		thirdLetter = colMap[(colNo % (26))]
+	}
+
+	if colNo <= 26 {
+		secondLetter = colMap[0]
+	} else {
+		if int(math.Floor(float64(colNo-1)/26.0))%26 == 0 {
+			secondLetter = colMap[26]
+		} else {
+			secondLetter = colMap[int(int((math.Floor(float64(colNo-1)/26)))%(26))]
+			//secondLetter = colMap[int(math.Floor(float64(colNo-1)/(26.0)))]
+		}
+	}
+	if colNo <= 26*27 {
+		firstLetter = colMap[0]
+	} else {
+		firstLetter = colMap[int(math.Floor(float64(colNo-26-1)/(26.0*26.0)))]
+	}
+
+	return (firstLetter + secondLetter + thirdLetter), nil
 }
 
 // configurations that need implimenting
