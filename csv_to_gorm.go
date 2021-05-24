@@ -149,6 +149,24 @@ func GetHeadings(file *os.File, colSep rune) ([]string, error) {
 	return colNames, err
 }
 
+func GetDbFields(model interface{}) ([]string, error) {
+
+	modelTyp := reflect.ValueOf(model).Elem().Type()
+	modelNumFlds := modelTyp.NumField()
+
+	var result = make([]string, 0, modelNumFlds)
+
+	// for each field in the model
+	for fldIx := 0; fldIx < modelNumFlds; fldIx++ {
+		fieldName := modelTyp.Field(fldIx).Name
+		if fieldName != "Model" { // don't list the gorm.Model field
+			result = append(result, fieldName)
+		}
+		//fldType := modelTyp.Field(fldIx).Type
+	}
+	return result, nil
+}
+
 // takes the text string of a CSV field and converts it to a reflect.Value of a given type (supplied as a reflect.Type)
 // used internally, but exposed as it may have uses elsewhere
 func StringToType(input string, outType reflect.Type) reflect.Value {

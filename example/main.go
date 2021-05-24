@@ -76,6 +76,14 @@ func main() {
 	}
 	fmt.Println("CSV file column headings are: : ", headings)
 
+	// ** Get Database fields example
+	// *******************************
+	dbFields, err := csv_to_gorm.GetDbFields(&Apple{})
+	if err != nil {
+		fmt.Println("Errorgetting headings", err.Error())
+	}
+	fmt.Println("Database Fields are: : ", dbFields)
+
 	// ** Read csv to database example
 	// *******************************
 	// created simply so that we know what kind of structure to populate.
