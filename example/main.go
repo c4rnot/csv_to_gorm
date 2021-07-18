@@ -32,18 +32,52 @@ var (
 		"ForEating":  7,
 	}
 
-	//fileName = "apples.csv"
-	fileName = "apples_german_enc.csv"
+	applesFileName    = "apples.csv"
+	orangesFileName   = "oranges.csv"
+	yieldFileName     = "yield.csv"
+	lossesFileName    = "pest_losses.csv"
+	exportersFileName = "biggest_exporters.csv"
 )
+
+type Orange struct {
+	gorm.Model         // include ID, CretedAt, UpdatedAt, DeletedAt
+	Name       string  `xtg:"col:Name"`
+	Diameter   float64 `xtg:"col:diameter"`
+	Popularity float64 `xtg:"col:Liked By"`
+}
+
+type Yield struct {
+	gorm.Model         // include ID, CretedAt, UpdatedAt, DeletedAt
+	Name       string  `xtg:"col:Name"`
+	Product    string  `xtg:"mapConst:product"`
+	Year       int     `xtg:"intcols:colname"`
+	Yield      float64 `xtg:"intcols:value"`
+}
+
+type PestLoss struct {
+	gorm.Model         // include ID, CretedAt, UpdatedAt, DeletedAt
+	Name       string  `xtg:"col:Name"`
+	Cause      string  `xtg:"melt:colname"`
+	Loss       float64 `xtg:"melt:value"`
+}
+
+type BiggestExporter struct {
+	gorm.Model             // include ID, CretedAt, UpdatedAt, DeletedAt
+	Country         string `xtg:"col:country"`
+	Type            string `xtg:"melt:colname"`
+	ExportCode      int    `xtg:"melt:value"`
+	Year            int    `xtg:"intcols:colname"`
+	BiggestExporter string `xtg:"intcols:value"`
+}
 
 func main() {
 
 	// open the file to read and defer its closure
-	file, err := os.Open(fileName)
+	applesFile, err := os.Open(applesFileName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer file.Close()
+	defer applesFile.Close()
 
 	// connect to the DB
 	dsn := os.Getenv("DATABASE_URL")
@@ -59,10 +93,19 @@ func main() {
 	if err != nil {
 		log.Fatal("could not migrate schema ", err)
 	}
+	db.AutoMigrate(&Orange{})
+	db.AutoMigrate(&Yield{})
+	db.AutoMigrate(&PestLoss{})
+	db.AutoMigrate(&BiggestExporter{})
+
+	params := csv_to_gorm.Params{
+		ColMap:          colMap,
+		FirstRowHasData: false,
+	}
 
 	// ** Guess separator example
 	// *******************************
-	sep, err := csv_to_gorm.GuessSeparator(file)
+	sep, err := csv_to_gorm.GuessSeparator(applesFile)
 	if err != nil {
 		fmt.Println("Error guessing Separator", err.Error())
 	}
@@ -70,7 +113,7 @@ func main() {
 
 	// ** Get headings example
 	// *******************************
-	headings, err := csv_to_gorm.GetHeadings(file, sep)
+	headings, err := csv_to_gorm.GetHeadings(applesFile, sep)
 	if err != nil {
 		fmt.Println("Errorgetting headings", err.Error())
 	}
@@ -90,8 +133,74 @@ func main() {
 	var apple Apple
 
 	// note, you need to typecast the returned interface so that Gorm knows what it is
-	apples := csv_to_gorm.CsvToSlice(file, sep, &apple, colMap).([]Apple)
+	apples, err := csv_to_gorm.CsvToSlice(applesFile, sep, &apple, params)
+	apples = apples.([]Apple)
+	if err != nil {
+		fmt.Println("Error creating Apples", err)
+	}
 	db.Create(&apples)
+
+	params = csv_to_gorm.Params{
+		FirstRowHasData: false,
+	}
+	orangesFile, err := os.Open(orangesFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer orangesFile.Close()
+	oranges, err := csv_to_gorm.CsvToSlice(orangesFile, sep, &apple, params)
+	oranges = oranges.([]Orange)
+	if err != nil {
+		fmt.Println("Error creating Oranges", err)
+	}
+	db.Create(&oranges)
+
+	params = csv_to_gorm.Params{
+		FirstRowHasData: false,
+		ConstMap:        map[string]string{"product": "apple"},
+	}
+	yieldFile, err := os.Open(yieldFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer yieldFile.Close()
+	yields, err := csv_to_gorm.CsvToSlice(yieldFile, sep, &apple, params)
+	yields = yields.([]Yield)
+	if err != nil {
+		fmt.Println("Error creating Apples", err)
+	}
+	db.Create(&yields)
+
+	params = csv_to_gorm.Params{
+		FirstRowHasData: false,
+	}
+	lossesFile, err := os.Open(lossesFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lossesFile.Close()
+	pestLosses, err := csv_to_gorm.CsvToSlice(lossesFile, sep, &apple, params)
+	pestLosses = pestLosses.([]PestLoss)
+	if err != nil {
+		fmt.Println("Error creating Apples", err)
+	}
+	db.Create(&pestLosses)
+
+	params = csv_to_gorm.Params{
+		FirstRowHasData: false,
+	}
+
+	exportersFile, err := os.Open(exportersFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer exportersFile.Close()
+	biggestExporters, err := csv_to_gorm.CsvToSlice(exportersFile, sep, &apple, params)
+	biggestExporters = biggestExporters.([]BiggestExporter)
+	if err != nil {
+		fmt.Println("Error creating Apples", err)
+	}
+	db.Create(&biggestExporters)
 
 	// ** Excel col helpers example **
 	// *******************************
