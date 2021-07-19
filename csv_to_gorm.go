@@ -145,7 +145,7 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 	// for each line of the CSV file, which is a record
 	dbRecordPtr := reflect.New(modelTyp)
 	for {
-		if recordIx%1 == 0 {
+		if recordIx%10000 == 0 {
 			fmt.Println("Processing record No.", recordIx)
 		}
 		csvRecord, err := r.Read()
@@ -186,10 +186,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 					meltColHdgs = getMeltCols(csvRecord, params.ColMap, definedCols, ignore, hasIntCols, intColHdgs)
 				}
 				// first row has no data, so skip to next row
-				fmt.Println("lclColMap", lclColMap)
-				fmt.Println("definedCols", definedCols)
-				fmt.Println("int col headings", intColHdgs)
-				fmt.Println("melt col headings", hasMelt, meltColHdgs)
 				recordIx++
 				continue
 			}
@@ -212,9 +208,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 					tag, _ := ParseTag(fld)
 
 					paramsCol := params.ColMap[fldName]
-					fmt.Println("Field: ", fldName)
-					fmt.Println("Col No: ", paramsCol)
-					//lclCol := lclColMap
 					if paramsCol > maxCol {
 						log.Fatal("Column supplied in map is out of range")
 					}
@@ -235,7 +228,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 						case tag.IsIntColsHead:
 							dbRecordPtr.Elem().Field(fldIx).Set(StringToType(intColHdg, fldType, params))
 						case tag.IsIntColsValue:
-							fmt.Println("Intcol heading: ", intColHdg)
 							fmt.Println("colMapCol: ", lclColMap[intColHdg])
 							dbRecordPtr.Elem().Field(fldIx).Set(StringToType(csvRecord[lclColMap[intColHdg]-1], fldType, params))
 						case tag.HasColanme:
@@ -264,8 +256,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 					tag, _ := ParseTag(fld)
 
 					paramsCol := params.ColMap[fldName]
-					fmt.Println("Field: ", fldName)
-					fmt.Println("Col No: ", paramsCol)
 					if paramsCol > maxCol {
 						log.Fatal("Column supplied in map is out of range")
 					}
@@ -315,8 +305,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 						tag, _ := ParseTag(fld)
 
 						paramsCol := params.ColMap[fldName]
-						fmt.Println("Field: ", fldName)
-						fmt.Println("Col No: ", paramsCol)
 						if paramsCol > maxCol {
 							log.Fatal("Column supplied in map is out of range")
 						}
@@ -366,10 +354,6 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 				tag, _ := ParseTag(fld)
 
 				paramsCol := params.ColMap[fldName]
-				//fmt.Println("Max Col: ", maxCol)
-				//fmt.Println("Field: ", fldName)
-				//fmt.Println("Col No: ", paramsCol)
-				//lclCol := lclColMap
 				if paramsCol > maxCol {
 					log.Fatal("Column supplied in map is out of range")
 				}
@@ -422,7 +406,6 @@ func GuessSeparator(file *os.File) (rune, error) {
 	sepCandidates := []rune{',', '\t', ';', ' '}
 
 	for _, sep := range sepCandidates {
-		//fmt.Println("Trying: '", string(sep), "'")
 		isCandidate := true
 		// make sure we start at the start of the file each time
 		file.Seek(0, 0)
@@ -494,7 +477,6 @@ func getIntCols(colNames []string) (intCols []string) {
 	for _, colName := range colNames {
 		if colName != "" {
 			i, err := strconv.Atoi(colName)
-			//fmt.Println("string, int", colName, i)
 			if err == nil && i != 0 {
 				intCols = append(intCols, strconv.Itoa(i))
 			}
@@ -565,7 +547,6 @@ func StringToType(input string, outType reflect.Type, params Params) reflect.Val
 		rtnString := strings.ToValidUTF8(input, "")
 		return reflect.ValueOf(rtnString)
 	case reflect.Bool:
-		//fmt.Println("Step a: bool")
 		if strings.ContainsAny(input[0:2], "YyTt1") || strings.Contains(strings.ToLower(input), "true") || strings.Contains(strings.ToLower(input), "yes") {
 			return reflect.ValueOf(true)
 		} else {
@@ -651,7 +632,6 @@ func StringToType(input string, outType reflect.Type, params Params) reflect.Val
 		resultPtr.Elem().SetFloat(f)
 		return resultPtr.Elem()
 	default:
-		fmt.Println("Step a: default")
 		log.Fatal("stringToType has recieved a ", outType, " and does not kow how to handle it")
 	}
 	return reflect.ValueOf(errors.New("stringToType could not convert type " + outType.Name()))
