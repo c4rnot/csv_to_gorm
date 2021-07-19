@@ -141,17 +141,11 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 	r := csv.NewReader(file)
 	r.Comma = colSep
 
-	// read the first line and ignore it , as it contains the headers
-	_, err = r.Read()
-	if err != nil {
-		log.Fatal("CsvToSlice: Cannot read heading row of CSV file")
-	}
-
 	var recordIx int = 0
 	// for each line of the CSV file, which is a record
 	dbRecordPtr := reflect.New(modelTyp)
 	for {
-		if recordIx%1000 == 0 {
+		if recordIx%1 == 0 {
 			fmt.Println("Processing record No.", recordIx)
 		}
 		csvRecord, err := r.Read()
@@ -165,7 +159,7 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 			if !params.FirstRowHasData {
 				lclColMap = mapHeadingToCol(csvRecord)
 				intColHdgs = getIntCols(csvRecord)
-				maxCol = len(csvRecord) - 1
+				maxCol = len(csvRecord) // counting from 1
 
 				// check if there is an intcol tag, as a db entry has to be made for each int col
 				for fldIx := 0; fldIx < modelNumFlds; fldIx++ {
@@ -191,6 +185,13 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 				} else {
 					meltColHdgs = getMeltCols(csvRecord, params.ColMap, definedCols, ignore, hasIntCols, intColHdgs)
 				}
+				// first row has no data, so skip to next row
+				fmt.Println("lclColMap", lclColMap)
+				fmt.Println("definedCols", definedCols)
+				fmt.Println("int col headings", intColHdgs)
+				fmt.Println("melt col headings", hasMelt, meltColHdgs)
+				recordIx++
+				continue
 			}
 			// any other special first row code for case where where data is in first row here
 		}
@@ -211,6 +212,8 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 					tag, _ := ParseTag(fld)
 
 					paramsCol := params.ColMap[fldName]
+					fmt.Println("Field: ", fldName)
+					fmt.Println("Col No: ", paramsCol)
 					//lclCol := lclColMap
 					if paramsCol > maxCol {
 						log.Fatal("Column supplied in map is out of range")
@@ -232,6 +235,8 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 						case tag.IsIntColsHead:
 							dbRecordPtr.Elem().Field(fldIx).Set(StringToType(intColHdg, fldType, params))
 						case tag.IsIntColsValue:
+							fmt.Println("Intcol heading: ", intColHdg)
+							fmt.Println("colMapCol: ", lclColMap[intColHdg])
 							dbRecordPtr.Elem().Field(fldIx).Set(StringToType(csvRecord[lclColMap[intColHdg]-1], fldType, params))
 						case tag.HasColanme:
 							if lclColMap[tag.Colname] == 0 {
@@ -259,6 +264,8 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 					tag, _ := ParseTag(fld)
 
 					paramsCol := params.ColMap[fldName]
+					fmt.Println("Field: ", fldName)
+					fmt.Println("Col No: ", paramsCol)
 					if paramsCol > maxCol {
 						log.Fatal("Column supplied in map is out of range")
 					}
@@ -308,6 +315,8 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 						tag, _ := ParseTag(fld)
 
 						paramsCol := params.ColMap[fldName]
+						fmt.Println("Field: ", fldName)
+						fmt.Println("Col No: ", paramsCol)
 						if paramsCol > maxCol {
 							log.Fatal("Column supplied in map is out of range")
 						}
@@ -357,6 +366,9 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 				tag, _ := ParseTag(fld)
 
 				paramsCol := params.ColMap[fldName]
+				//fmt.Println("Max Col: ", maxCol)
+				//fmt.Println("Field: ", fldName)
+				//fmt.Println("Col No: ", paramsCol)
 				//lclCol := lclColMap
 				if paramsCol > maxCol {
 					log.Fatal("Column supplied in map is out of range")
@@ -388,6 +400,8 @@ func CsvToSlice(file *os.File, colSep rune, model interface{}, params Params) (d
 			// objArry.Index(recordIx).Set(reflect.ValueOf(dbRecordPtr.Elem().Interface()))
 			objSlice = reflect.Append(objSlice, dbRecordPtr.Elem())
 		}
+
+		recordIx++
 
 	}
 	if err != nil {
@@ -479,9 +493,10 @@ func mapHeadingToCol(colNames []string) (colMap map[string]int) {
 func getIntCols(colNames []string) (intCols []string) {
 	for _, colName := range colNames {
 		if colName != "" {
-			int, err := strconv.Atoi(colName)
-			if err != nil {
-				intCols = append(intCols, strconv.Itoa(int))
+			i, err := strconv.Atoi(colName)
+			//fmt.Println("string, int", colName, i)
+			if err == nil && i != 0 {
+				intCols = append(intCols, strconv.Itoa(i))
 			}
 		}
 	}
@@ -579,26 +594,56 @@ func StringToType(input string, outType reflect.Type, params Params) reflect.Val
 		} else {
 			bitSize = 32
 		}
+		if strings.Contains(input, "inf") {
+
+			if strings.Contains(input, "-") {
+				if outType.Kind() == reflect.Float64 {
+					f := -math.MaxFloat64
+					resultPtr.Elem().SetFloat(f)
+				} else {
+					f := -math.MaxFloat32
+					resultPtr.Elem().SetFloat(f)
+				}
+			} else {
+				if outType.Kind() == reflect.Float64 {
+					f := math.MaxFloat64
+					resultPtr.Elem().SetFloat(f)
+				} else {
+					f := math.MaxFloat32
+					resultPtr.Elem().SetFloat(f)
+				}
+			}
+			return resultPtr.Elem()
+		}
 
 		f, err := strconv.ParseFloat(input, bitSize)
 		if err != nil {
+			//fmt.Print("failed first")
 			// we could be trying to read a %
 			f, err = strconv.ParseFloat(strings.Replace(input, "%", "", 1), bitSize)
 			if err != nil {
+				//fmt.Print("failed first %")
 				// we could be reading a German encoded file with the decimals represented as commas
 				f, err = strconv.ParseFloat(strings.Replace(input, ",", ".", 1), bitSize)
 				if err != nil {
+					//fmt.Print("failed German")
 					// could be German format and %
 					f, err = strconv.ParseFloat(strings.Replace(strings.Replace(input, ",", ".", 1), "%", "", 1), bitSize)
 					if err != nil {
+						//fmt.Print("failed German and %")
 						if params.ErrorOnNaN {
 							log.Fatal("CellToType could not convert "+input+" to float: ", err)
 						}
 						f = math.NaN()
+						resultPtr.Elem().SetFloat(f)
+						return resultPtr.Elem()
+
 					}
 					// number was %, so divide by 100
 					f = f / 100.0
 				}
+				resultPtr.Elem().SetFloat(f)
+				return resultPtr.Elem()
 			}
 			// number was %, so divide by 100
 			f = f / 100.0

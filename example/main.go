@@ -129,16 +129,15 @@ func main() {
 
 	// ** Read csv to database example
 	// *******************************
-	// created simply so that we know what kind of structure to populate.
-	var apple Apple
 
 	// note, you need to typecast the returned interface so that Gorm knows what it is
-	apples, err := csv_to_gorm.CsvToSlice(applesFile, sep, &apple, params)
+	apples, err := csv_to_gorm.CsvToSlice(applesFile, sep, &Apple{}, params)
 	apples = apples.([]Apple)
 	if err != nil {
 		fmt.Println("Error creating Apples", err)
 	}
-	db.Create(&apples)
+	fmt.Println("apples", apples)
+	db.Model(&Apple{}).Create(apples) // PASS
 
 	params = csv_to_gorm.Params{
 		FirstRowHasData: false,
@@ -148,12 +147,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer orangesFile.Close()
-	oranges, err := csv_to_gorm.CsvToSlice(orangesFile, sep, &apple, params)
+	oranges, err := csv_to_gorm.CsvToSlice(orangesFile, sep, &Orange{}, params)
 	oranges = oranges.([]Orange)
 	if err != nil {
 		fmt.Println("Error creating Oranges", err)
 	}
-	db.Create(&oranges)
+	db.Model(&Orange{}).Create(oranges) // PASS
 
 	params = csv_to_gorm.Params{
 		FirstRowHasData: false,
@@ -164,12 +163,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer yieldFile.Close()
-	yields, err := csv_to_gorm.CsvToSlice(yieldFile, sep, &apple, params)
+	yields, err := csv_to_gorm.CsvToSlice(yieldFile, sep, &Yield{}, params)
 	yields = yields.([]Yield)
 	if err != nil {
-		fmt.Println("Error creating Apples", err)
+		fmt.Println("Error creating yields", err)
 	}
-	db.Create(&yields)
+	db.Model(&Yield{}).Create(yields) // PASS
 
 	params = csv_to_gorm.Params{
 		FirstRowHasData: false,
@@ -179,12 +178,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer lossesFile.Close()
-	pestLosses, err := csv_to_gorm.CsvToSlice(lossesFile, sep, &apple, params)
+	pestLosses, err := csv_to_gorm.CsvToSlice(lossesFile, sep, &PestLoss{}, params)
 	pestLosses = pestLosses.([]PestLoss)
 	if err != nil {
-		fmt.Println("Error creating Apples", err)
+		fmt.Println("Error creating pest_loses", err)
 	}
-	db.Create(&pestLosses)
+	db.Model(&PestLoss{}).Create(pestLosses) // PASS
 
 	params = csv_to_gorm.Params{
 		FirstRowHasData: false,
@@ -195,12 +194,12 @@ func main() {
 		log.Fatal(err)
 	}
 	defer exportersFile.Close()
-	biggestExporters, err := csv_to_gorm.CsvToSlice(exportersFile, sep, &apple, params)
+	biggestExporters, err := csv_to_gorm.CsvToSlice(exportersFile, sep, &BiggestExporter{}, params)
 	biggestExporters = biggestExporters.([]BiggestExporter)
 	if err != nil {
-		fmt.Println("Error creating Apples", err)
+		fmt.Println("Error creating exporters", err)
 	}
-	db.Create(&biggestExporters)
+	db.Model(&BiggestExporter{}).Create(biggestExporters) // PASS
 
 	// ** Excel col helpers example **
 	// *******************************
